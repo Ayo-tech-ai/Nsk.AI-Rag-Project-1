@@ -1,91 +1,87 @@
+import os
 import streamlit as st
+from langchain_groq import ChatGroq
 from langchain_community.vectorstores import FAISS
 from langchain.schema import Document
+from langchain.prompts import PromptTemplate
+from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceEmbeddings
 
-# --- Setup page ---
-st.set_page_config(page_title="Crop Advisor", page_icon="🌾", layout="centered")
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="🌾 Agro RAG Chatbot", page_icon="🌾")
 
-# --- Embeddings ---
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+# --- TITLE ---
+st.title("🌾 Agro RAG Chatbot")
+st.write("Ask me anything about cassava, yam, and maize. I only know what's in my knowledge base.")
 
-# --- Crop data ---
-crop_docs = {
-    "Cassava": [
-        Document(page_content="Cassava is a root crop grown widely in Nigeria.", metadata={"source": "AgroDoc1"}),
-        Document(page_content="Cassava can be processed into garri, fufu, and other foods.", metadata={"source": "AgroDoc2"}),
-        Document(page_content="Cassava grows well in well-drained sandy-loam soils.", metadata={"source": "AgroDoc3"})
-    ],
-    "Yam": [
-        Document(page_content="Yam is a staple food in West Africa.", metadata={"source": "AgroDoc1"}),
-        Document(page_content="Yam can be boiled, roasted, or pounded into pounded yam.", metadata={"source": "AgroDoc2"}),
-        Document(page_content="Yam is grown in mounds or ridges to allow tuber expansion.", metadata={"source": "AgroDoc3"})
-    ],
-    "Maize": [
-        Document(page_content="Maize is a cereal crop grown across Nigeria.", metadata={"source": "AgroDoc1"}),
-        Document(page_content="Maize can be processed into pap, a popular Nigerian breakfast meal.", metadata={"source": "AgroDoc2"}),
-        Document(page_content="Maize thrives in fertile, well-drained soils with good sunlight.", metadata={"source": "AgroDoc3"})
-    ]
-}
+# --- API KEY ---
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
-# --- Crop summaries ---
-crop_summaries = {
-    "Cassava": "Cassava is a root crop widely cultivated in Nigeria. It can be processed into garri, fufu, and starch, and grows well in sandy-loam soils.",
-    "Yam": "Yam is a staple food in West Africa, eaten boiled, roasted, or pounded. It grows best in mounds or ridges with loose soil.",
-    "Maize": "Maize is a versatile cereal crop grown across Nigeria, used for food and animal feed. It thrives in fertile soils with good sunlight."
-}
+# --- LLM (Groq API) ---
+llm = ChatGroq(api_key=GROQ_API_KEY, model="mixtral-8x7b-32768")
 
-# --- Build FAISS indexes ---
-faiss_indexes = {crop: FAISS.from_documents(docs, embeddings) for crop, docs in crop_docs.items()}
+# --- EMBEDDINGS ---
+embeddings = HuggingFaceEmbeddings()
 
-# --- Intro message ---
-st.markdown("## 👋 Hello! I’m your Crop Advisor bot")
-st.markdown("Select a crop below and ask me anything about it.")
+# --- KNOWLEDGE BASE CONTENT ---
+knowledge_texts = [
+    # Cassava
+    """Cassava is a major root crop widely cultivated in Nigeria for its starchy tubers, which serve as a staple food and industrial raw material. 
+    It is drought-tolerant and can be grown in poor soils, making it vital for food security.
+    Climate & Soil Requirements: Prefers warm, humid tropical climates (25–29°C), sandy-loam soils (pH 5.5–6.5), rainfall 1,000–1,500 mm.
+    Planting: Stem cuttings (20–25 cm) on ridges/mounds, spacing 1m × 1m, weed regularly.
+    Pests/Diseases: Cassava mealybug, green mite, cassava mosaic disease, bacterial blight.
+    Harvest: 9–12 months after planting, process tubers within 48 hours.
+    Market: Processed into garri, fufu, starch, ethanol, and feed. Nigeria is world’s largest producer.""",
 
-# --- Crop selection ---
-crop_choice = st.selectbox("🌱 Choose a crop", list(crop_docs.keys()), index=None, placeholder="Select a crop...")
+    # Yam
+    """Yam is a staple food crop in Nigeria, culturally significant and economically valuable. Nigeria produces over 70% of the world’s yams.
+    Climate & Soil Requirements: Tropical climates (25–30°C), deep loamy soils rich in organic matter, rainfall 1,200–1,500 mm.
+    Planting: Tuber setts or small whole tubers, spacing 1m × 1m or 1.2m × 1.2m, use stakes for vines.
+    Pests/Diseases: Yam beetles, nematodes, anthracnose, yam mosaic virus, tuber rots.
+    Harvest: 8–12 months after planting, store in ventilated yam barns.
+    Market: Consumed boiled, pounded, fried, roasted, also exported fresh/processed.""",
 
-# --- Initialize chat history ---
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "selected_crop" not in st.session_state:
-    st.session_state.selected_crop = None
+    # Maize
+    """Maize is an important cereal crop in Nigeria for food, livestock feed, and industry. Grown nationwide, adaptable to many climates.
+    Climate & Soil Requirements: Thrives at 18–27°C, fertile well-drained soils (pH 5.5–7.0), rainfall 500–1,200 mm depending on variety.
+    Planting: Direct seeding, spacing 75 cm × 25 cm, apply NPK fertilizer, weed early.
+    Pests/Diseases: Stem borers, armyworms, maize streak virus, rust, leaf blight.
+    Harvest: Dry husks, hard kernels; dry grains to 12–13% moisture.
+    Market: Consumed fresh or processed (pap, flour, feed), used in breweries and food industries."""
+]
 
-# --- When crop is selected ---
-if crop_choice:
-    st.session_state.selected_crop = crop_choice
-    st.markdown(f"### 📄 {crop_choice} Summary")
-    st.write(crop_summaries[crop_choice])
+# Convert knowledge text into Document objects
+docs = [Document(page_content=text, metadata={"source": f"KB_{i+1}"}) for i, text in enumerate(knowledge_texts)]
 
-    # --- Chat interface ---
-    st.markdown("---")
-    st.markdown("### 💬 Ask me anything about this crop")
+# --- FAISS VECTOR STORE ---
+faiss_index = FAISS.from_documents(docs, embeddings)
 
-    # Show previous conversation
-    for role, text in st.session_state.chat_history:
-        if role == "user":
-            st.markdown(f"**👤 You:** {text}")
-        else:
-            st.markdown(f"**🤖 Bot:** {text}")
+# --- PROMPT TEMPLATE ---
+prompt_template = """
+Use the following pieces of context to answer the question.
+If you don’t know the answer from the context, say "I don't know."
 
-    # Question input
-    user_question = st.text_input("Type your question here...", key="question_input")
+Context:
+{context}
 
-    if user_question:
-        # Store user question
-        st.session_state.chat_history.append(("user", user_question))
+Question:
+{question}
 
-        # Retrieve answer from FAISS
-        faiss_index = faiss_indexes[crop_choice]
-        result = faiss_index.similarity_search(user_question, k=1)
+Answer:
+"""
+prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
 
-        if result:
-            answer = result[0].page_content
-        else:
-            answer = "Sorry, I don’t have information on that right now. Please check back later."
+# --- QA CHAIN ---
+qa_chain = RetrievalQA.from_chain_type(
+    llm=llm,
+    retriever=faiss_index.as_retriever(),
+    chain_type_kwargs={"prompt": prompt}
+)
 
-        # Store bot answer
-        st.session_state.chat_history.append(("bot", answer))
-
-        # Clear input
-        st.experimental_rerun()
+# --- USER INPUT ---
+user_question = st.text_input("💬 Ask a question:")
+if user_question:
+    with st.spinner("Thinking..."):
+        answer = qa_chain.run(user_question)
+    st.success(answer)
