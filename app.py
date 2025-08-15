@@ -8,7 +8,7 @@ from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceEmbeddings
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="🌾 Agro RAG Chatbot", page_icon="🌾")
+st.set_page_config(page_title="🌾 AgroScan Chatbot", page_icon="🌾")
 
 # --- TITLE / INTRO ---
 st.title("🌾 Agro RAG Chatbot")
@@ -71,6 +71,8 @@ prompt = PromptTemplate(template=prompt_template, input_variables=["context", "q
 # --- CHAT HISTORY ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "greeted" not in st.session_state:
+    st.session_state.greeted = False
 
 # --- CROP SELECTION ---
 selected_crop = st.selectbox("Select a crop:", list(knowledge_texts.keys()))
@@ -85,18 +87,30 @@ qa_chain = RetrievalQA.from_chain_type(
 )
 
 # --- USER INPUT ---
-user_input = st.text_input("💬 Ask a question:")
+user_input = st.text_input("💬 Ask a question:", key="input_box")
 
 if user_input:
     with st.spinner("Thinking..."):
         answer = qa_chain.run(user_input)
-    # Append to chat history
-    st.session_state.chat_history.append(("User", user_input))
-    st.session_state.chat_history.append(("Bot", answer))
+    
+    # Insert user question at the top
+    st.session_state.chat_history.insert(0, ("User", user_input))
+    
+    # Insert bot greeting first if not greeted yet
+    if not st.session_state.greeted:
+        greeting = "👋 Hello! I’m your Crop Advisor bot. How can I help you today?"
+        st.session_state.chat_history.insert(0, ("Bot", greeting))
+        st.session_state.greeted = True
 
-# --- DISPLAY CHAT HISTORY ---
+    # Insert bot answer right after greeting (so it appears below user input)
+    st.session_state.chat_history.insert(0, ("Bot", answer))
+    
+    # Clear input box
+    st.session_state.input_box = ""
+
+# --- DISPLAY CHAT HISTORY (newest at top, grows downward) ---
 for speaker, message in st.session_state.chat_history:
     if speaker == "User":
-        st.markdown(f"**User:** {message}")
+        st.markdown(f"<div style='background-color:#D1E7DD;padding:8px;border-radius:8px;margin-bottom:5px'><b>User:</b> {message}</div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"**Bot:** {message}")
+        st.markdown(f"<div style='background-color:#F8D7DA;padding:8px;border-radius:8px;margin-bottom:5px'><b>Bot:</b> {message}</div>", unsafe_allow_html=True)
