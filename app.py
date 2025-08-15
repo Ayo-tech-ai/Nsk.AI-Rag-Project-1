@@ -73,6 +73,8 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "greeted" not in st.session_state:
     st.session_state.greeted = False
+if "input_box" not in st.session_state:
+    st.session_state.input_box = ""
 
 # --- CROP SELECTION ---
 selected_crop = st.selectbox("Select a crop:", list(knowledge_texts.keys()))
@@ -87,26 +89,29 @@ qa_chain = RetrievalQA.from_chain_type(
 )
 
 # --- USER INPUT ---
-user_input = st.text_input("💬 Ask a question:", key="input_box")
+st.text_input("💬 Ask a question:", key="input_box")
 
-if user_input:
-    with st.spinner("Thinking..."):
-        answer = qa_chain.run(user_input)
-    
-    # Insert user question at the top
-    st.session_state.chat_history.insert(0, ("User", user_input))
-    
-    # Insert bot greeting first if not greeted yet
-    if not st.session_state.greeted:
-        greeting = "👋 Hello! I’m your Crop Advisor bot. How can I help you today?"
-        st.session_state.chat_history.insert(0, ("Bot", greeting))
-        st.session_state.greeted = True
+# --- SEND BUTTON ---
+if st.button("Send"):
+    user_input = st.session_state.input_box
+    if user_input.strip() != "":
+        with st.spinner("Thinking..."):
+            answer = qa_chain.run(user_input)
+        
+        # Insert user question at the top
+        st.session_state.chat_history.insert(0, ("User", user_input))
+        
+        # Insert bot greeting first if not greeted yet
+        if not st.session_state.greeted:
+            greeting = "👋 Hello! I’m your Crop Advisor bot. How can I help you today?"
+            st.session_state.chat_history.insert(0, ("Bot", greeting))
+            st.session_state.greeted = True
 
-    # Insert bot answer right after greeting (so it appears below user input)
-    st.session_state.chat_history.insert(0, ("Bot", answer))
-    
-    # Clear input box
-    st.session_state.input_box = ""
+        # Insert bot answer right after greeting
+        st.session_state.chat_history.insert(0, ("Bot", answer))
+        
+        # Clear input box
+        st.session_state.input_box = ""
 
 # --- DISPLAY CHAT HISTORY (newest at top, grows downward) ---
 for speaker, message in st.session_state.chat_history:
