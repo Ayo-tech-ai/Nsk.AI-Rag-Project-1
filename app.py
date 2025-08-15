@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 from langchain_groq import ChatGroq
 from langchain_community.vectorstores import FAISS
@@ -10,15 +9,22 @@ from langchain.embeddings import HuggingFaceEmbeddings
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="🌾 Agro RAG Chatbot", page_icon="🌾")
 
-# --- TITLE / INTRO ---
+# --- INTRO ---
 st.title("🌾 Agro RAG Chatbot")
 st.write("👋 Hello! I’m your Crop Advisor bot. Select a crop below and ask me anything about it.")
 
 # --- API KEY ---
-GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 
-# --- LLM (Groq API) ---
-llm = ChatGroq(api_key=GROQ_API_KEY, model="mixtral-8x7b-32768")
+if not GROQ_API_KEY:
+    st.error("❌ API key not found. Please add GROQ_API_KEY to Streamlit secrets.")
+    st.stop()
+
+# --- LLM (Groq LLAMA model) ---
+llm = ChatGroq(
+    groq_api_key=GROQ_API_KEY,
+    model="llama-3.3-70b-versatile"
+)
 
 # --- EMBEDDINGS ---
 embeddings = HuggingFaceEmbeddings()
@@ -48,17 +54,15 @@ Market: Consumed fresh or processed (pap, flour, feed), used in breweries and fo
 }
 
 # --- CONVERT KNOWLEDGE TO DOCUMENTS AND FAISS ---
-docs_dict = {}
 faiss_dict = {}
 for crop, text in knowledge_texts.items():
     docs = [Document(page_content=text, metadata={"source": f"{crop}_KB"})]
-    docs_dict[crop] = docs
     faiss_dict[crop] = FAISS.from_documents(docs, embeddings)
 
 # --- PROMPT TEMPLATE ---
 prompt_template = """
-Use the following pieces of context to answer the question.
-If you don’t know the answer from the context, say "I don't know."
+You are an agricultural assistant. Use the following context to answer the question.
+If you don't know the answer, say you don't know.
 
 Context:
 {context}
@@ -77,7 +81,7 @@ if "chat_history" not in st.session_state:
 # --- CROP SELECTION ---
 selected_crop = st.selectbox("Select a crop:", list(knowledge_texts.keys()))
 st.markdown(f"**Short Summary of {selected_crop}:**")
-st.write(knowledge_texts[selected_crop].split("\n")[0])  # just first line for summary
+st.write(knowledge_texts[selected_crop].split("\n")[0])  # first line as summary
 
 # --- RETRIEVAL QA CHAIN FOR SELECTED CROP ---
 qa_chain = RetrievalQA.from_chain_type(
