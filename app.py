@@ -10,7 +10,7 @@ from langchain.embeddings import HuggingFaceEmbeddings
 st.set_page_config(page_title="🌾 Agro RAG Chatbot", page_icon="🌾")
 
 # --- INTRO ---
-st.title("🌾 Agro RAG Chatbot")
+st.title("🌾 AgroScan_AI Chatbot")
 st.write("👋 Hello! I’m your Crop Advisor bot. Select a crop below and ask me anything about it.")
 
 # --- API KEY ---
@@ -77,6 +77,10 @@ prompt = PromptTemplate(template=prompt_template, input_variables=["context", "q
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
+# --- INPUT BOX KEY INIT ---
+if "input_box" not in st.session_state:
+    st.session_state.input_box = ""
+
 # --- CROP SELECTION ---
 selected_crop = st.selectbox("Select a crop:", list(knowledge_texts.keys()))
 st.markdown(f"**Short Summary of {selected_crop}:**")
@@ -91,21 +95,20 @@ qa_chain = RetrievalQA.from_chain_type(
 
 # --- FUNCTION TO SEND QUESTION ---
 def send_question(question):
-    """Run QA chain and update chat history"""
     if question:
         with st.spinner("Thinking..."):
             answer = qa_chain.run(question)
         st.session_state.chat_history.append(("User", question))
         st.session_state.chat_history.append(("Bot", answer))
-        st.session_state.input_box = ""  # clear input box after sending
+        # Clear input box
+        st.session_state.input_box = ""
 
 # --- DISPLAY CHAT HISTORY ---
 for speaker, message in st.session_state.chat_history:
     if speaker == "User":
         st.markdown(f"**User:** {message}")
     else:
-        # Keep multi-line answers readable
-        formatted = message.replace("\n", "  \n")
+        formatted = message.replace("\n", "  \n")  # multi-line friendly
         st.markdown(f"**Bot:** {formatted}")
 
 # --- USER INPUT BOX ---
