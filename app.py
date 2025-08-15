@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 from langchain_groq import ChatGroq
 from langchain_community.vectorstores import FAISS
@@ -9,21 +10,15 @@ from langchain.embeddings import HuggingFaceEmbeddings
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="🌾 Agro RAG Chatbot", page_icon="🌾")
 
-# --- INTRO ---
-st.title("🌾 AgroScan_AI Chatbot")
+# --- TITLE / INTRO ---
+st.title("🌾 Agro RAG Chatbot")
 st.write("👋 Hello! I’m your Crop Advisor bot. Select a crop below and ask me anything about it.")
 
 # --- API KEY ---
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
-if not GROQ_API_KEY:
-    st.error("❌ API key not found. Please add GROQ_API_KEY to Streamlit secrets.")
-    st.stop()
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
-# --- LLM (Groq LLAMA model) ---
-llm = ChatGroq(
-    groq_api_key=GROQ_API_KEY,
-    model="llama-3.3-70b-versatile"
-)
+# --- LLM (Groq API) ---
+llm = ChatGroq(api_key=GROQ_API_KEY, model="llama-3.3-70b-versatile")
 
 # --- EMBEDDINGS ---
 embeddings = HuggingFaceEmbeddings()
@@ -60,8 +55,8 @@ for crop, text in knowledge_texts.items():
 
 # --- PROMPT TEMPLATE ---
 prompt_template = """
-You are an agricultural assistant. Use the following context to answer the question.
-If you don't know the answer, say you don't know.
+Use the following pieces of context to answer the question.
+If you don’t know the answer from the context, say "I don't know."
 
 Context:
 {context}
@@ -77,41 +72,31 @@ prompt = PromptTemplate(template=prompt_template, input_variables=["context", "q
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# --- INPUT BOX KEY INIT ---
-if "input_box" not in st.session_state:
-    st.session_state.input_box = ""
-
 # --- CROP SELECTION ---
 selected_crop = st.selectbox("Select a crop:", list(knowledge_texts.keys()))
 st.markdown(f"**Short Summary of {selected_crop}:**")
-st.write(knowledge_texts[selected_crop].split("\n")[0])  # First line as summary
+st.write(knowledge_texts[selected_crop].split("\n")[0])  # first line only
 
-# --- RETRIEVAL QA CHAIN ---
+# --- RETRIEVAL QA CHAIN FOR SELECTED CROP ---
 qa_chain = RetrievalQA.from_chain_type(
     llm=llm,
     retriever=faiss_dict[selected_crop].as_retriever(),
     chain_type_kwargs={"prompt": prompt}
 )
 
-# --- FUNCTION TO SEND QUESTION ---
-def send_question(question):
-    if question:
-        with st.spinner("Thinking..."):
-            answer = qa_chain.run(question)
-        st.session_state.chat_history.append(("User", question))
-        st.session_state.chat_history.append(("Bot", answer))
-        # Clear input box
-        st.session_state.input_box = ""
+# --- USER INPUT ---
+user_input = st.text_input("💬 Ask a question:")
+
+if user_input:
+    with st.spinner("Thinking..."):
+        answer = qa_chain.run(user_input)
+    # Append to chat history
+    st.session_state.chat_history.append(("User", user_input))
+    st.session_state.chat_history.append(("Bot", answer))
 
 # --- DISPLAY CHAT HISTORY ---
 for speaker, message in st.session_state.chat_history:
     if speaker == "User":
         st.markdown(f"**User:** {message}")
     else:
-        formatted = message.replace("\n", "  \n")  # multi-line friendly
-        st.markdown(f"**Bot:** {formatted}")
-
-# --- USER INPUT BOX ---
-user_input = st.text_input("💬 Ask a question:", key="input_box")
-if user_input:
-    send_question(user_input)
+        st.markdown(f"**Bot:** {message}")
