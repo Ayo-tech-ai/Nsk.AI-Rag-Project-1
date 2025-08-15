@@ -10,12 +10,11 @@ from langchain.embeddings import HuggingFaceEmbeddings
 st.set_page_config(page_title="🌾 Agro RAG Chatbot", page_icon="🌾")
 
 # --- INTRO ---
-st.title("🌾 Agro RAG Chatbot")
+st.title("🌾 AgroScan_AI Chatbot")
 st.write("👋 Hello! I’m your Crop Advisor bot. Select a crop below and ask me anything about it.")
 
 # --- API KEY ---
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
-
 if not GROQ_API_KEY:
     st.error("❌ API key not found. Please add GROQ_API_KEY to Streamlit secrets.")
     st.stop()
@@ -81,28 +80,37 @@ if "chat_history" not in st.session_state:
 # --- CROP SELECTION ---
 selected_crop = st.selectbox("Select a crop:", list(knowledge_texts.keys()))
 st.markdown(f"**Short Summary of {selected_crop}:**")
-st.write(knowledge_texts[selected_crop].split("\n")[0])  # first line as summary
+st.write(knowledge_texts[selected_crop].split("\n")[0])
 
-# --- RETRIEVAL QA CHAIN FOR SELECTED CROP ---
+# --- RETRIEVAL QA CHAIN ---
 qa_chain = RetrievalQA.from_chain_type(
     llm=llm,
     retriever=faiss_dict[selected_crop].as_retriever(),
     chain_type_kwargs={"prompt": prompt}
 )
 
-# --- USER INPUT ---
-user_input = st.text_input("💬 Ask a question:")
-
-if user_input:
-    with st.spinner("Thinking..."):
-        answer = qa_chain.run(user_input)
-    # Append to chat history
-    st.session_state.chat_history.append(("User", user_input))
-    st.session_state.chat_history.append(("Bot", answer))
+# --- FUNCTION TO SEND QUESTION ---
+def send_question(question):
+    if question:
+        with st.spinner("Thinking..."):
+            answer = qa_chain.run(question)
+        st.session_state.chat_history.append(("User", question))
+        st.session_state.chat_history.append(("Bot", answer))
 
 # --- DISPLAY CHAT HISTORY ---
 for speaker, message in st.session_state.chat_history:
     if speaker == "User":
         st.markdown(f"**User:** {message}")
+    else:
+        # Format multi-line lists nicely
+        formatted = message.replace("\n", "  \n")  # Markdown line breaks
+        st.markdown(f"**Bot:** {formatted}")
+
+# --- USER INPUT BOX ---
+user_input = st.text_input("💬 Ask a question:", key="input_box")
+if user_input:
+    send_question(user_input)
+    # Clear input box for next question
+    st.session_state.input_box = ""        st.markdown(f"**User:** {message}")
     else:
         st.markdown(f"**Bot:** {message}")
