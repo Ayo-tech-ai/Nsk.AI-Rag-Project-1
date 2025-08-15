@@ -10,7 +10,7 @@ from langchain.embeddings import HuggingFaceEmbeddings
 st.set_page_config(page_title="🌾 Agro RAG Chatbot", page_icon="🌾")
 
 # --- INTRO ---
-st.title("🌾 AgroScan_AI Chatbot")
+st.title("🌾 Agro RAG Chatbot")
 st.write("👋 Hello! I’m your Crop Advisor bot. Select a crop below and ask me anything about it.")
 
 # --- API KEY ---
@@ -102,8 +102,14 @@ for speaker, message in st.session_state.chat_history:
     if speaker == "User":
         st.markdown(f"**User:** {message}")
     else:
-        # Format multi-line lists nicely
         formatted = message.replace("\n", "  \n")  # Markdown line breaks
+        st.markdown(f"**Bot:** {formatted}")
+
+# --- USER INPUT BOX ---
+user_input = st.text_input("💬 Ask a question:", key="input_box")
+if user_input:
+    send_question(user_input)
+    st.session_state.input_box = ""  # clear input box for next question        formatted = message.replace("\n", "  \n")  # Markdown line breaks
         st.markdown(f"**Bot:** {formatted}")
 
 # --- USER INPUT BOX ---
