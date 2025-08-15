@@ -11,7 +11,7 @@ from langchain.embeddings import HuggingFaceEmbeddings
 st.set_page_config(page_title="🌾 AgroScan Chatbot", page_icon="🌾")
 
 # --- TITLE / INTRO ---
-st.title("🌾 Agro RAG Chatbot")
+st.title("🌾 AgroScan_AI Chatbot")
 st.write("👋 Hello! I’m your Crop Advisor bot. Select a crop below and ask me anything about it.")
 
 # --- API KEY ---
@@ -74,15 +74,30 @@ if "chat_history" not in st.session_state:
 if "greeted" not in st.session_state:
     st.session_state.greeted = False
 
-# --- CROP SELECTION ---
-selected_crop = st.selectbox("Select a crop:", list(knowledge_texts.keys()))
-st.markdown(f"**Short Summary of {selected_crop}:**")
-st.write(knowledge_texts[selected_crop].split("\n")[0])  # first line only
+# --- CROP SELECTION WITH "All Crops" OPTION ---
+crop_options = ["All Crops"] + list(knowledge_texts.keys())
+selected_crop = st.selectbox("Select a crop:", crop_options)
 
-# --- RETRIEVAL QA CHAIN FOR SELECTED CROP ---
+st.markdown(f"**Short Summary of {selected_crop}:**")
+if selected_crop == "All Crops":
+    st.write("This includes all crops: Cassava, Yam, and Maize.")
+else:
+    st.write(knowledge_texts[selected_crop].split("\n")[0])  # first line only
+
+# --- RETRIEVAL QA CHAIN BASED ON SELECTION ---
+if selected_crop == "All Crops":
+    # Combine all crop documents
+    all_docs = []
+    for crop, text in knowledge_texts.items():
+        all_docs.append(Document(page_content=text, metadata={"source": f"{crop}_KB"}))
+    combined_faiss = FAISS.from_documents(all_docs, embeddings)
+    retriever = combined_faiss.as_retriever()
+else:
+    retriever = faiss_dict[selected_crop].as_retriever()
+
 qa_chain = RetrievalQA.from_chain_type(
     llm=llm,
-    retriever=faiss_dict[selected_crop].as_retriever(),
+    retriever=retriever,
     chain_type_kwargs={"prompt": prompt}
 )
 
@@ -100,7 +115,7 @@ with st.form("chat_form", clear_on_submit=True):
         
         # Insert bot greeting first if not greeted yet
         if not st.session_state.greeted:
-            greeting = "👋 Hello! I’m your Crop Advisor bot. How can I help you today?"
+            greeting = "👋 I’m your Crop Advisor bot. How can I help you today?"
             st.session_state.chat_history.insert(0, ("Bot", greeting))
             st.session_state.greeted = True
         
