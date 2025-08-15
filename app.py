@@ -80,7 +80,7 @@ if "chat_history" not in st.session_state:
 # --- CROP SELECTION ---
 selected_crop = st.selectbox("Select a crop:", list(knowledge_texts.keys()))
 st.markdown(f"**Short Summary of {selected_crop}:**")
-st.write(knowledge_texts[selected_crop].split("\n")[0])
+st.write(knowledge_texts[selected_crop].split("\n")[0])  # First line as summary
 
 # --- RETRIEVAL QA CHAIN ---
 qa_chain = RetrievalQA.from_chain_type(
@@ -91,32 +91,24 @@ qa_chain = RetrievalQA.from_chain_type(
 
 # --- FUNCTION TO SEND QUESTION ---
 def send_question(question):
+    """Run QA chain and update chat history"""
     if question:
         with st.spinner("Thinking..."):
             answer = qa_chain.run(question)
         st.session_state.chat_history.append(("User", question))
         st.session_state.chat_history.append(("Bot", answer))
+        st.session_state.input_box = ""  # clear input box after sending
 
 # --- DISPLAY CHAT HISTORY ---
 for speaker, message in st.session_state.chat_history:
     if speaker == "User":
         st.markdown(f"**User:** {message}")
     else:
-        formatted = message.replace("\n", "  \n")  # Markdown line breaks
+        # Keep multi-line answers readable
+        formatted = message.replace("\n", "  \n")
         st.markdown(f"**Bot:** {formatted}")
 
 # --- USER INPUT BOX ---
 user_input = st.text_input("💬 Ask a question:", key="input_box")
 if user_input:
     send_question(user_input)
-    st.session_state.input_box = ""  # clear input box for next question        formatted = message.replace("\n", "  \n")  # Markdown line breaks
-        st.markdown(f"**Bot:** {formatted}")
-
-# --- USER INPUT BOX ---
-user_input = st.text_input("💬 Ask a question:", key="input_box")
-if user_input:
-    send_question(user_input)
-    # Clear input box for next question
-    st.session_state.input_box = ""        st.markdown(f"**User:** {message}")
-    else:
-        st.markdown(f"**Bot:** {message}")
